@@ -74,3 +74,63 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: #404040;
 }
+
+/* ==========================================
+   DISEÑO RESPONSIVO (PRIORIDAD CENTRAL)
+   ========================================== */
+
+/* Pantallas medianas (TVs con escala alta, tablets apaisadas) */
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 240px !important;
+    min-width: 220px !important;
+    padding: 12px !important;
+  }
+  .canvas-panel {
+    width: 280px !important;
+    min-width: 250px !important;
+    padding: 12px !important;
+  }
+  .track-title {
+    font-size: 20px !important;
+  }
+}
+
+/* Pantallas intermedias (TVs medianas, tablets verticales) */
+@media (max-width: 1024px) {
+  .canvas-panel {
+    display: none !important; /* Ocultar panel de canvas para dar espacio al centro */
+  }
+}
+
+/* Pantallas de celular o muy angostas */
+@media (max-width: 768px) {
+  .main-layout {
+    padding: 4px !important;
+    gap: 4px !important;
+  }
+  .sidebar {
+    display: none !important; /* Ocultar sidebar en móvil */
+  }
+  .main-content {
+    padding: 12px !important;
+  }
+  .player-bar {
+    height: auto !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 16px 12px !important;
+  }
+  .player-left, .player-center, .player-right {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  .player-right {
+    gap: 12px !important;
+  }
+  .volume-bar {
+    width: 100% !important;
+    max-width: 150px !important;
+  }
+}

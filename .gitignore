@@ -53,6 +53,7 @@ Thumbs.db
 # Local level-player specific ignores
 backend/src/config.json
 backend/src/library_state.json
+backend/src/lyrics/
 backend/error_logs.json
 migration_blueprint.md
 
@@ -77,3 +78,8 @@ scripts/qobuz-dl.bat
 scripts/*.log
 scripts/__pycache__/
 scripts/SpotiFLAC-Windows.exe
+
+# More sensitive / local files
+backend/.env
+variadas/
+analisis_reproductores_inspo.md

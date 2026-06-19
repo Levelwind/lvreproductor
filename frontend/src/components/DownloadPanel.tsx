@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DownloadCloud } from 'lucide-react';
+import { getApiBase } from '../context/PlayerContext';
 
 interface DownloadPanelProps {
   onDownloadComplete: () => void;
@@ -32,7 +33,7 @@ export function DownloadPanel({ onDownloadComplete }: DownloadPanelProps) {
     }
 
     const timer = setTimeout(() => {
-      fetch('http://localhost:4000/api/metadata', {
+      fetch(`${getApiBase()}/api/metadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
@@ -59,7 +60,7 @@ export function DownloadPanel({ onDownloadComplete }: DownloadPanelProps) {
     let interval: ReturnType<typeof setInterval>;
     if (downloading) {
       interval = setInterval(() => {
-        fetch('http://localhost:4000/api/download/progress')
+        fetch(`${getApiBase()}/api/download/progress`)
           .then(res => res.json())
           .then(data => {
             if (data.progress !== undefined) {
@@ -84,7 +85,7 @@ export function DownloadPanel({ onDownloadComplete }: DownloadPanelProps) {
     if (!downloadMeta) {
       setDownloadMsg('Obteniendo información...');
       try {
-        const metaRes = await fetch('http://localhost:4000/api/metadata', {
+        const metaRes = await fetch(`${getApiBase()}/api/metadata`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url })
@@ -100,7 +101,7 @@ export function DownloadPanel({ onDownloadComplete }: DownloadPanelProps) {
 
     setDownloadMsg('Descargando pista en alta calidad de Tidal...');
     try {
-      const res = await fetch('http://localhost:4000/api/download', {
+      const res = await fetch(`${getApiBase()}/api/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
@@ -113,7 +114,7 @@ export function DownloadPanel({ onDownloadComplete }: DownloadPanelProps) {
       } else {
         setDownloadMsg(`✅ ¡Descarga completada con éxito! Actualizando biblioteca...`);
         // Escanear la carpeta de descargas para que aparezca la nueva canción
-        await fetch('http://localhost:4000/api/scan', {
+        await fetch(`${getApiBase()}/api/scan`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ folders: ["C:\\Users\\Sebas\\Music\\Alta y Media Calidad"] })

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { type Track } from '../context/PlayerContext';
+import { type Track, getApiBase } from '../context/PlayerContext';
 
 interface LyricsSyncPanelProps {
   tracks: Track[];
@@ -16,7 +16,7 @@ export function LyricsSyncPanel({ tracks, onSyncFinished }: LyricsSyncPanelProps
     let interval: ReturnType<typeof setInterval>;
 
     const checkStatus = () => {
-      fetch('http://localhost:4000/api/lyrics/sync-status')
+      fetch(`${getApiBase()}/api/lyrics/sync-status`)
         .then(res => res.json())
         .then(data => {
           setSyncProgress(data);
@@ -38,7 +38,7 @@ export function LyricsSyncPanel({ tracks, onSyncFinished }: LyricsSyncPanelProps
 
   const handleStartSync = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/lyrics/sync-all', {
+      const res = await fetch(`${getApiBase()}/api/lyrics/sync-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: syncMode })
@@ -54,7 +54,7 @@ export function LyricsSyncPanel({ tracks, onSyncFinished }: LyricsSyncPanelProps
 
   const handleStopSync = async () => {
     try {
-      await fetch('http://localhost:4000/api/lyrics/sync-stop', {
+      await fetch(`${getApiBase()}/api/lyrics/sync-stop`, {
         method: 'POST'
       });
     } catch (e) {

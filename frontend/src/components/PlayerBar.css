@@ -54,25 +54,55 @@
 
 .btn-control {
   color: var(--color-text-secondary);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background-color 0.2s, transform 0.1s;
 }
 
 .btn-control:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-hover);
+}
+
+.btn-control:active {
+  transform: scale(0.95);
+}
+
+.btn-control:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  background-color: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
 .btn-play {
   background-color: var(--color-text-primary);
   color: var(--color-bg-base);
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.2s, background-color 0.2s;
 }
 
 .btn-play:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
+  background-color: #ffffff;
+}
+
+.btn-play:active {
+  transform: scale(0.95);
+}
+
+.btn-play:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
 }
 
 /* Simulación visualizador SoundCloud */

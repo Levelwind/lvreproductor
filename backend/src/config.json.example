@@ -14,5 +14,11 @@
   },
   "paths": {
     "musicFolders": []
+  },
+  "audio": {
+    "audioDevice": "wasapi/exclusive",
+    "exclusiveMode": true,
+    "gaplessMode": true,
+    "replayGainMode": "track"
   }
 }

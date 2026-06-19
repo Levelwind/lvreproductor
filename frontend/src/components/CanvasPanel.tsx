@@ -1,6 +1,6 @@
 import { MoreHorizontal, Video, Music } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { usePlayer } from '../context/PlayerContext';
+import { usePlayer, getApiBase } from '../context/PlayerContext';
 import './CanvasPanel.css';
 
 export function CanvasPanel() {
@@ -13,11 +13,11 @@ export function CanvasPanel() {
   }, [currentTrack?.id]);
 
   const coverUrl = currentTrack?.filePath
-    ? `http://localhost:4000/api/cover?path=${encodeURIComponent(currentTrack.filePath)}`
+    ? `${getApiBase()}/api/cover?path=${encodeURIComponent(currentTrack.filePath)}`
     : 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&q=80&w=400';
 
   const canvasUrl = currentTrack?.canvasPath
-    ? `http://localhost:4000/api/stream?path=${encodeURIComponent(currentTrack.canvasPath)}`
+    ? `${getApiBase()}/api/stream?path=${encodeURIComponent(currentTrack.canvasPath)}`
     : null;
 
   const isMp4Canvas = currentTrack?.canvasPath?.endsWith('.mp4');

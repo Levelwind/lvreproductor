@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiBase } from '../context/PlayerContext';
 
 export function useLyrics(artist?: string, title?: string, filePath?: string, refreshVersion: number = 0) {
   const [lyrics, setLyrics] = useState<string | null>(null);
@@ -10,7 +11,7 @@ export function useLyrics(artist?: string, title?: string, filePath?: string, re
     setLoading(true);
     setError(null);
 
-    const localUrl = `http://localhost:4000/api/lyrics?path=${encodeURIComponent(filePath || '')}&v=${refreshVersion}`;
+    const localUrl = `${getApiBase()}/api/lyrics?path=${encodeURIComponent(filePath || '')}&v=${refreshVersion}`;
 
     const fetchOnline = (fallback: string | null) => {
       if (!artist || !title || artist === '-' || artist === 'Artista Desconocido') {

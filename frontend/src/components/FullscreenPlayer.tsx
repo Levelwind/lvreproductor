@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { X, Play, Pause, SkipBack, SkipForward, Repeat, Shuffle } from 'lucide-react';
-import { usePlayer } from '../context/PlayerContext';
+import { usePlayer, getApiBase } from '../context/PlayerContext';
 import { useColorExtractor } from '../hooks/useColorExtractor';
 import { useLyrics } from '../hooks/useLyrics';
 import './FullscreenPlayer.css';
@@ -69,7 +69,7 @@ export function FullscreenPlayer() {
   }, [currentTrack?.id]);
 
   const coverUrl = currentTrack?.filePath 
-    ? `http://localhost:4000/api/cover?path=${encodeURIComponent(currentTrack.filePath)}&v=${coverVersion}` 
+    ? `${getApiBase()}/api/cover?path=${encodeURIComponent(currentTrack.filePath)}&v=${coverVersion}` 
     : undefined;
 
   const activeCoverUrl = (!coverError && coverUrl) ? coverUrl : undefined;
@@ -90,7 +90,7 @@ export function FullscreenPlayer() {
     setUpdatingCover(true);
     try {
       const res = await fetch(
-        `http://localhost:4000/api/cover?path=${encodeURIComponent(currentTrack.filePath)}&force_search=true`
+        `${getApiBase()}/api/cover?path=${encodeURIComponent(currentTrack.filePath)}&force_search=true`
       );
       if (res.ok) {
         setCoverVersion(prev => prev + 1);

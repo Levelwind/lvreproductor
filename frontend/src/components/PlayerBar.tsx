@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Volume2, Mic2, ListMusic, Maximize2, Music } from 'lucide-react';
-import { usePlayer } from '../context/PlayerContext';
+import { usePlayer, getApiBase } from '../context/PlayerContext';
 import './PlayerBar.css';
 
 export function PlayerBar() {
@@ -43,7 +43,7 @@ export function PlayerBar() {
           ) : (
             <img 
               key={currentTrack.id}
-              src={`http://localhost:4000/api/cover?path=${encodeURIComponent(currentTrack.filePath || '')}`}
+              src={`${getApiBase()}/api/cover?path=${encodeURIComponent(currentTrack.filePath || '')}`}
               alt="cover"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={() => setCoverError(true)}

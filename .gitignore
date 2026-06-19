@@ -54,6 +54,7 @@ Thumbs.db
 backend/src/config.json
 backend/src/library_state.json
 backend/error_logs.json
+migration_blueprint.md
 
 # Local files at root
 33ddc9da-2a5e-47d1-8dd4-4726deaee318.jpg

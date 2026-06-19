@@ -1,0 +1,78 @@
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.cache/
+*.log
+
+# Editor & OS settings
+.vscode/
+.idea/
+.cursor/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Media downloads (to avoid uploading local music files)
+**/Qobuz Downloads/
+**/Tidal-Media-Downloader/
+**/NebulaPlayer/
+**/Spicetify/
+**/Spotify/
+**/qobuz-dl/
+**/scratch/
+
+# Executables & large archives
+*.exe
+*.rar
+*.zip
+*.lnk
+*.tar.gz
+
+# Local level-player specific ignores
+backend/src/config.json
+backend/src/library_state.json
+backend/error_logs.json
+
+# Local files at root
+33ddc9da-2a5e-47d1-8dd4-4726deaee318.jpg
+6585ffe4-754c-43a3-9aee-1b894d063a01.txt
+notas del proyecto.odt
+plan_migracion_audio.txt
+ruta_aprendizaje_y_futuro.txt
+start.bat
+start - copia.bat
+
+# Local files in scripts
+scripts/cokies.txt
+scripts/.cache
+scripts/1bd5644f-37f2-4f3d-b60e-793e312f1038.txt
+scripts/50e1938d-ddae-445e-b16a-b54a98fc42c4.txt
+scripts/b46af18d-1814-4973-9340-bda30e48622c.txt
+scripts/links_artistas.txt
+scripts/links_sueltos.txt
+scripts/qobuz-dl.bat
+scripts/*.log
+scripts/__pycache__/
+scripts/SpotiFLAC-Windows.exe

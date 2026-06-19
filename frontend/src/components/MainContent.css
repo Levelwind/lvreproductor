@@ -1,0 +1,124 @@
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background-color: transparent;
+}
+
+.search-box {
+  background-color: var(--color-bg-elevated);
+  border-radius: 32px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 320px;
+}
+
+.search-box input {
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-family: var(--font-main);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  background-color: var(--color-bg-base);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.tab {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.tab.active {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.content-area {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.download-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+  margin-top: 40px;
+}
+
+.download-panel h1 {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.download-input {
+  background-color: var(--color-bg-elevated);
+  border: 2px solid transparent;
+  padding: 16px;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-family: var(--font-main);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.download-input:focus {
+  border-color: var(--color-brand);
+}
+
+.btn-primary {
+  background-color: var(--color-brand);
+  color: #000;
+  padding: 16px;
+  border-radius: 32px;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.1s, background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-brand-hover);
+  transform: scale(1.02);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}

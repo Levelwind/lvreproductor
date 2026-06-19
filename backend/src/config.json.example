@@ -1,0 +1,18 @@
+{
+  "spotify": {
+    "clientId": "",
+    "clientSecret": "",
+    "sp_dc": "",
+    "accessToken": "",
+    "clientToken": ""
+  },
+  "tidal": {
+    "token": ""
+  },
+  "youtube": {
+    "cookie": ""
+  },
+  "paths": {
+    "musicFolders": []
+  }
+}

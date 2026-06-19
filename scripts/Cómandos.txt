@@ -1,0 +1,34 @@
+¡Descarga videos de YouTube, tiktok, Instagram, X twitter, facebook usando solo comandos! ⚡
+
+Así funciona 👇
+1️⃣ winget install yt-dlp
+2️⃣yt-dlp "pega tu enlace aquí"
+
+máxima calidad real (video + audio):
+
+yt-dlp -f "bv*+ba/b" "link de video aquí"
+
+Descargar solo audio (máxima calidad)
+
+yt-dlp -x --audio-format mp3 --audio-quality 0 "link de video aquí"
+
+
+Descargar playlists completas en máxima calidad
+
+yt-dlp -f "bv*+ba/b" "link de la play list aquí"
+
+Elegir carpeta de descarga
+
+yt-dlp -P "%USERPROFILE%\Desktop/suscribete" "URL"
+
+Plataformas en la que funciona:
+
+YouTube, Instagram (reels, posts, stories públicas), TikTok, Twitter / X, Vimeo
+, Dailymotion, Twitch (VODs y clips), Reddit, Kick, Medios de noticias (muchos)
+, Plataformas educativas, Sitios con reproductores embebidos
+
+En la práctica:
+
+Si el video se reproduce en el navegador sin app especial, yt-dlp suele poder descargarlo.
+
+Espero y que te hayas suscrito al canal

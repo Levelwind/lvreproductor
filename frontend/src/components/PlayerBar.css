@@ -1,0 +1,123 @@
+.player-bar {
+  height: 90px;
+  background-color: var(--color-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 10;
+}
+
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 30%;
+}
+
+.mini-cover {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  background-color: var(--color-bg-hover);
+}
+
+.player-track-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.player-track-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.player-track-artist {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.player-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 40%;
+  max-width: 722px;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 8px;
+}
+
+.btn-control {
+  color: var(--color-text-secondary);
+}
+
+.btn-control:hover {
+  color: var(--color-text-primary);
+}
+
+.btn-play {
+  background-color: var(--color-text-primary);
+  color: var(--color-bg-base);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-play:hover {
+  transform: scale(1.05);
+}
+
+/* Simulación visualizador SoundCloud */
+.waveform-container {
+  width: 100%;
+  height: 24px;
+  background-color: var(--color-bg-hover);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.waveform-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background-color: var(--color-brand);
+}
+
+.player-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  width: 30%;
+}
+
+.volume-bar {
+  width: 100px;
+  height: 4px;
+  background-color: var(--color-bg-hover);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.volume-level {
+  width: 50%;
+  height: 100%;
+  background-color: var(--color-text-primary);
+  border-radius: 2px;
+}
+
+.mini-cover:hover .expand-overlay {
+  opacity: 1 !important;
+}

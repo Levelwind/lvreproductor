@@ -1,0 +1,79 @@
+.canvas-panel {
+  width: 380px; /* ~25% */
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  position: relative;
+}
+
+.canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.canvas-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.album-cover-container {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--color-bg-elevated);
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  margin-bottom: 16px;
+}
+
+.album-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 8px;
+}
+
+.track-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-title {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.track-artist {
+  font-size: 16px;
+  color: var(--color-text-secondary);
+}
+
+.btn-toggle-video {
+  margin-top: 24px;
+  background-color: var(--color-bg-elevated);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.btn-toggle-video:hover {
+  background-color: var(--color-bg-hover);
+}

@@ -2,6 +2,8 @@
   "ignore": [
     "src/library_state.json",
     "src/config.json",
-    "src/lyrics/*"
+    "src/lyrics/*",
+    "src/mpd/*",
+    "dist/*"
   ]
 }

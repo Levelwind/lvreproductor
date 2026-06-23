@@ -172,6 +172,64 @@ function distributeShuffle(tracks: Track[], history: string[] = []): Track[] {
   return spreadList.map(item => item.track);
 }
 
+function clearCustomFade(sound: Howl) {
+  if (sound && (sound as any)._customFadeInterval) {
+    window.clearInterval((sound as any)._customFadeInterval);
+    (sound as any)._customFadeInterval = null;
+  }
+}
+
+function smoothFade(
+  sound: Howl,
+  from: number,
+  toTarget: number | (() => number),
+  durationMs: number,
+  onComplete?: () => void
+) {
+  if (!sound) return;
+
+  clearCustomFade(sound);
+
+  const start = Date.now();
+  const getTarget = typeof toTarget === 'function' ? toTarget : () => toTarget;
+  
+  sound.volume(from);
+
+  const interval = window.setInterval(() => {
+    try {
+      if (sound.state() === 'unloaded') {
+        window.clearInterval(interval);
+        if ((sound as any)._customFadeInterval === interval) {
+          (sound as any)._customFadeInterval = null;
+        }
+        return;
+      }
+
+      const elapsed = Date.now() - start;
+      const target = getTarget();
+      
+      if (elapsed >= durationMs) {
+        window.clearInterval(interval);
+        (sound as any)._customFadeInterval = null;
+        sound.volume(target);
+        if (onComplete) onComplete();
+      } else {
+        const progress = elapsed / durationMs;
+        const currentVol = from + (target - from) * progress;
+        sound.volume(Math.max(0, Math.min(1, currentVol)));
+      }
+    } catch (err) {
+      console.error('[Player] Error en smoothFade:', err);
+      window.clearInterval(interval);
+      if ((sound as any)._customFadeInterval === interval) {
+        (sound as any)._customFadeInterval = null;
+      }
+    }
+  }, 30);
+
+  (sound as any)._customFadeInterval = interval;
+}
+
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const apiBase = getApiBase();
   const [playbackEngine, setPlaybackEngine] = useState(() =>
@@ -233,6 +291,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const lastSkipTimeRef = useRef<number>(0);
   const consecutiveErrorsRef = useRef<number>(0);
   const configRef = useRef<any>(null);
+
+  const fadingSoundsRef = useRef<Howl[]>([]);
+
+  function clearAllFadingSounds() {
+    fadingSoundsRef.current.forEach(sound => {
+      clearCustomFade(sound);
+      try {
+        const sounds = (sound as any)._sounds;
+        if (sounds && sounds.length > 0 && sounds[0]._node) {
+          const node = sounds[0]._node as HTMLAudioElement;
+          node.src = '';
+          node.load();
+        }
+      } catch {}
+      try {
+        sound.unload();
+      } catch {}
+    });
+    fadingSoundsRef.current = [];
+  }
 
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -481,6 +559,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     clearIntervalSafe();
     clearPreloadTimerSafe();
 
+    clearAllFadingSounds();
+
     if (soundRef.current) {
       const soundToFade = soundRef.current;
       soundRef.current = null;
@@ -490,28 +570,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       soundToFade.off('loaderror');
       soundToFade.off('playerror');
 
+      clearCustomFade(soundToFade);
+
       if (fadeTimeMs > 0) {
         try {
-          // Obtener el volumen en tiempo real para evitar saltos o pops de volumen
-          let startVolume = volumeRef.current;
-          try {
-            const sounds = (soundToFade as any)._sounds;
-            if (sounds && sounds.length > 0 && sounds[0]._node) {
-              const node = sounds[0]._node as HTMLAudioElement;
-              startVolume = node.volume;
-            } else {
-              startVolume = soundToFade.volume();
-            }
-          } catch {
-            startVolume = soundToFade.volume();
+          let startVolume = soundToFade.volume();
+          if (typeof startVolume !== 'number') {
+            startVolume = volumeRef.current;
           }
 
-          soundToFade.fade(startVolume, 0, fadeTimeMs);
+          fadingSoundsRef.current.push(soundToFade);
 
-          let unloaded = false;
-          const doUnload = () => {
-            if (unloaded) return;
-            unloaded = true;
+          smoothFade(soundToFade, startVolume, 0, fadeTimeMs, () => {
+            fadingSoundsRef.current = fadingSoundsRef.current.filter(s => s !== soundToFade);
             try {
               const sounds = (soundToFade as any)._sounds;
               if (sounds && sounds.length > 0 && sounds[0]._node) {
@@ -521,12 +592,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               }
             } catch {}
             soundToFade.unload();
-          };
-
-          soundToFade.once('fade', doUnload);
-          // Safety timeout to prevent memory/network leak if browser suspends or misses the fade event
-          setTimeout(doUnload, fadeTimeMs + 1000);
+          });
         } catch {
+          fadingSoundsRef.current = fadingSoundsRef.current.filter(s => s !== soundToFade);
           soundToFade.unload();
         }
       } else {
@@ -648,10 +716,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       src: [streamUrl],
       html5: true,
       format: getTrackFormats(nextTrack),
-      volume: 0, // Precarga silenciosa
+      volume: 0.001, // Precarga silenciosa pero no absoluto 0 para evitar throttling del navegador
       preload: true,
       onload: () => {
         console.log('[Player] Siguiente track precargado en Howl (HTML5):', nextTrack?.title);
+      },
+      onloaderror: (id, err) => {
+        console.warn('[Player] Error al precargar track:', nextTrack?.title, err);
+        unloadPreloadedSound();
       }
     });
   }
@@ -701,6 +773,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     let fadeInTriggered = false;
 
     const onPlay = () => {
+      console.log('[Player] Pista onPlay llamada para:', track.title);
       isPlayingRef.current = true;
       setIsPlaying(true);
       consecutiveErrorsRef.current = 0; // reset consecutive error count
@@ -719,7 +792,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // Activar fade-in de forma segura en la primera reproducción de esta pista
       if (crossfadeDurationMs > 0 && !fadeInTriggered) {
         fadeInTriggered = true;
-        sound.fade(0, volumeRef.current, crossfadeDurationMs);
+        smoothFade(sound, 0, () => volumeRef.current, crossfadeDurationMs);
       }
 
       clearIntervalSafe();
@@ -791,6 +864,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
 
     const onLoad = () => {
+      console.log('[Player] Pista onLoad llamada para:', track.title);
       const remoteDuration = sound.duration();
       if (remoteDuration && remoteDuration > 0) {
         durationRef.current = remoteDuration;
@@ -847,7 +921,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sound.on('loaderror', onLoadError);
       sound.on('playerror', onPlayError);
 
-      sound.volume(crossfadeDurationMs > 0 ? 0 : volumeRef.current);
+      sound.volume(crossfadeDurationMs > 0 ? 0.001 : volumeRef.current);
 
       if (sound.state() === 'loaded') {
         onLoad();
@@ -860,7 +934,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         src: [streamUrl],
         html5: true,
         format: getTrackFormats(track),
-        volume: crossfadeDurationMs > 0 ? 0 : volumeRef.current,
+        volume: crossfadeDurationMs > 0 ? 0.001 : volumeRef.current,
         onplay: onPlay,
         onpause: onPause,
         onstop: onStop,
@@ -957,9 +1031,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isPlayingRef.current) {
-      soundRef.current.pause();
+      if (soundRef.current) {
+        clearCustomFade(soundRef.current);
+        soundRef.current.volume(volumeRef.current);
+        soundRef.current.pause();
+      }
+      clearAllFadingSounds();
     } else {
-      soundRef.current.play();
+      soundRef.current?.play();
     }
   }
 
@@ -973,7 +1052,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    soundRef.current?.volume(nextVolume);
+    if (soundRef.current) {
+      if (!(soundRef.current as any)._customFadeInterval) {
+        soundRef.current.volume(nextVolume);
+      }
+    }
   }
 
   function seekTo(percent: number) {
@@ -991,7 +1074,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    soundRef.current?.seek(targetSeconds);
+    if (soundRef.current) {
+      clearCustomFade(soundRef.current);
+      soundRef.current.volume(volumeRef.current);
+      soundRef.current.seek(targetSeconds);
+    }
   }
 
   function toggleShuffle() {

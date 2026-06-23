@@ -104,8 +104,8 @@ app.post('/api/player/pause', (_req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.post('/api/player/next', (_req: Request, res: Response) => {
-  playerService.skipNext(true);
+app.post('/api/player/next', async (_req: Request, res: Response) => {
+  await playerService.skipNext(true);
   res.json({ success: true });
 });
 
@@ -446,7 +446,23 @@ app.get('/api/config', (req: Request, res: Response) => {
 app.post('/api/config', (req: Request, res: Response) => {
   try {
     const newConfig = req.body;
+    // Leer config anterior para detectar cambios que requieran reinicio
+    let oldConfig: any = {};
+    try {
+      oldConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    } catch { /* ignore */ }
+    const oldExclusive = oldConfig?.audio?.exclusiveMode;
+    const newExclusive = newConfig?.audio?.exclusiveMode;
+
     fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), 'utf-8');
+
+    // Si cambió el modo exclusivo, reiniciar MPD para que再生 la nueva config de audio
+    if (oldExclusive !== undefined && oldExclusive !== newExclusive) {
+      playerService.restartMpd();
+    } else {
+      // Solo re-aplicar settings que no requieren reinicio
+      playerService.reapplyAudioConfig();
+    }
     res.json({ status: 'success', message: 'Configuración actualizada' });
   } catch (error) {
     res.status(500).json({ error: 'Error al guardar la configuración' });

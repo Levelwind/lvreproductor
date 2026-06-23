@@ -151,9 +151,34 @@ export function SettingsPanel({ config, setConfig, tracks, onSyncFinished }: Set
             })}
             style={{ cursor: 'pointer' }}
           >
-            <option value="native">Nativo local (mpv.exe) — Audio bit-perfect (WASAPI)</option>
-            <option value="browser">Navegador web (Howler.js) — Soporta Crossfade</option>
+            <option value="native">Nativo local (MPD) — Audio bit-perfect (WASAPI)</option>
+            <option value="browser">Navegador web (Howler.js)</option>
           </select>
+ 
+          {config?.audio?.playbackEngine !== 'browser' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--color-text-primary)', marginTop: '10px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={config?.audio?.exclusiveMode !== false}
+                  onChange={e => setConfig({
+                    ...config,
+                    audio: {
+                      ...config.audio,
+                      exclusiveMode: e.target.checked
+                    }
+                  })}
+                  style={{ cursor: 'pointer' }}
+                />
+                Modo Exclusivo WASAPI <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>(desmarca para oír YouTube y otras apps mientras suena música — vía winmm)</span>
+              </label>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: '4px 0 0 24px' }}>
+                {config?.audio?.exclusiveMode !== false
+                  ? 'Audio bit-perfect, pero otras apps no podrán reproducir sonido.'
+                  : 'Audio compartido (winmm) — calidad idéntica a WASAPI shared, sin bloquear otras apps.'}
+              </p>
+            </>
+          )}
 
           <h3 style={{ marginTop: '20px', marginBottom: '10px', fontSize: '18px', fontWeight: '600' }}>Transiciones de Audio</h3>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--color-text-primary)' }}>
@@ -170,7 +195,7 @@ export function SettingsPanel({ config, setConfig, tracks, onSyncFinished }: Set
               })}
               style={{ cursor: 'pointer' }}
             />
-            Habilitar Crossfade (Fundido Cruzado) <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>(Solo en modo de audio Navegador)</span>
+            Habilitar Crossfade (Fundido Cruzado) <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>(Soportado en modo Nativo y Navegador)</span>
           </label>
 
           {!!config?.audio?.crossfadeEnabled && (
@@ -193,6 +218,46 @@ export function SettingsPanel({ config, setConfig, tracks, onSyncFinished }: Set
               />
             </div>
           )}
+
+          <h3 style={{ marginTop: '20px', marginBottom: '10px', fontSize: '18px', fontWeight: '600' }}>Normalización de Audio (ReplayGain)</h3>
+          <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+            ReplayGain normaliza el volumen entre canciones para que suenen todas al mismo nivel. 
+            El preamp aplica ganancia adicional. Recomendado: modo <strong>Track</strong> con preamp <strong>6 dB</strong>.
+          </p>
+          <label style={{ fontSize: '13px' }}>Modo ReplayGain</label>
+          <select 
+            className="download-input"
+            value={config?.audio?.replayGainMode || 'track'}
+            onChange={e => setConfig({
+              ...config,
+              audio: {
+                ...config.audio,
+                replayGainMode: e.target.value
+              }
+            })}
+            style={{ cursor: 'pointer', marginBottom: '10px' }}
+          >
+            <option value="off">Desactivado</option>
+            <option value="track">Track (por canción)</option>
+            <option value="album">Album (por álbum)</option>
+          </select>
+
+          <label style={{ fontSize: '13px' }}>Preamp: <strong style={{ color: 'var(--color-brand)' }}>{config?.audio?.replayGainPreamp ?? 6} dB</strong></label>
+          <input 
+            type="range" 
+            min="-15" 
+            max="15" 
+            step="1"
+            value={config?.audio?.replayGainPreamp ?? 6} 
+            onChange={e => setConfig({
+              ...config,
+              audio: {
+                ...config.audio,
+                replayGainPreamp: Number(e.target.value)
+              }
+            })}
+            style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-brand)', marginBottom: '6px' }}
+          />
 
           <button className="btn-primary" onClick={handleSaveConfig} style={{ marginTop: '20px' }}>
             Guardar Cambios

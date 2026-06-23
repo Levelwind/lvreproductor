@@ -66,6 +66,13 @@ ruta_aprendizaje_y_futuro.txt
 start.bat
 start - copia.bat
 
+# Backend runtime files (auto-generated logs and binaries)
+backend/src/mpd/
+backend/backend_err.txt
+backend/backend_error.txt
+backend/backend_out.txt
+backend/backend_output.txt
+
 # Local files in scripts
 scripts/cokies.txt
 scripts/.cache

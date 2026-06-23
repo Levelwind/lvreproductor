@@ -174,7 +174,10 @@ function distributeShuffle(tracks: Track[], history: string[] = []): Track[] {
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const apiBase = getApiBase();
-  const isLocalMode = isLocalHostname(window.location.hostname);
+  const [playbackEngine, setPlaybackEngine] = useState(() =>
+    localStorage.getItem('level_player_playback_engine') || 'native'
+  );
+  const isLocalMode = isLocalHostname(window.location.hostname) && playbackEngine !== 'browser';
 
   const [currentTrack, setCurrentTrack] = useState<Track | null>(() =>
     isLocalMode ? null : readJsonStorage<Track | null>('level_player_current_track', null)
@@ -208,6 +211,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<string[]>(() =>
     isLocalMode ? [] : readJsonStorage<string[]>('level_player_history', [])
   );
+  const [config, setConfig] = useState<any>(null);
 
   const soundRef = useRef<Howl | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -226,6 +230,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const preloadedSoundRef = useRef<Howl | null>(null);
   const lastPrevClickRef = useRef<number>(0);
   const preloadTimerRef = useRef<number | null>(null);
+  const lastSkipTimeRef = useRef<number>(0);
+  const consecutiveErrorsRef = useRef<number>(0);
+  const configRef = useRef<any>(null);
 
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -238,6 +245,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { playQueueRef.current = playQueue; }, [playQueue]);
   useEffect(() => { loopModeRef.current = loopMode; }, [loopMode]);
   useEffect(() => { historyRef.current = history; }, [history]);
+  useEffect(() => { configRef.current = config; }, [config]);
+
+  const loadConfig = () => {
+    fetch(`${apiBase}/api/config`)
+      .then(res => res.json())
+      .then(data => {
+        setConfig(data);
+        if (data?.audio?.playbackEngine) {
+          setPlaybackEngine(data.audio.playbackEngine);
+          localStorage.setItem('level_player_playback_engine', data.audio.playbackEngine);
+        }
+      })
+      .catch(err => console.error('[PlayerContext] Error loading config:', err));
+  };
+
+  useEffect(() => {
+    loadConfig();
+    window.addEventListener('level-player-config-updated', loadConfig);
+    return () => window.removeEventListener('level-player-config-updated', loadConfig);
+  }, [apiBase]);
 
   useEffect(() => {
     if (isLocalMode) return;
@@ -450,23 +477,71 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function stopRemoteSound() {
+  function stopRemoteSound(fadeTimeMs = 0) {
     clearIntervalSafe();
     clearPreloadTimerSafe();
 
     if (soundRef.current) {
-      try {
-        const sounds = (soundRef.current as any)._sounds;
-        if (sounds && sounds.length > 0 && sounds[0]._node) {
-          const node = sounds[0]._node as HTMLAudioElement;
-          node.src = '';
-          node.load();
-        }
-      } catch (err) {
-        console.warn('[Player] Error al forzar liberacion de red de Howler:', err);
-      }
-      soundRef.current.unload();
+      const soundToFade = soundRef.current;
       soundRef.current = null;
+
+      // Desvincular eventos para evitar que llamen a saltar pista mientras se desvanece
+      soundToFade.off('end');
+      soundToFade.off('loaderror');
+      soundToFade.off('playerror');
+
+      if (fadeTimeMs > 0) {
+        try {
+          // Obtener el volumen en tiempo real para evitar saltos o pops de volumen
+          let startVolume = volumeRef.current;
+          try {
+            const sounds = (soundToFade as any)._sounds;
+            if (sounds && sounds.length > 0 && sounds[0]._node) {
+              const node = sounds[0]._node as HTMLAudioElement;
+              startVolume = node.volume;
+            } else {
+              startVolume = soundToFade.volume();
+            }
+          } catch {
+            startVolume = soundToFade.volume();
+          }
+
+          soundToFade.fade(startVolume, 0, fadeTimeMs);
+
+          let unloaded = false;
+          const doUnload = () => {
+            if (unloaded) return;
+            unloaded = true;
+            try {
+              const sounds = (soundToFade as any)._sounds;
+              if (sounds && sounds.length > 0 && sounds[0]._node) {
+                const node = sounds[0]._node as HTMLAudioElement;
+                node.src = '';
+                node.load();
+              }
+            } catch {}
+            soundToFade.unload();
+          };
+
+          soundToFade.once('fade', doUnload);
+          // Safety timeout to prevent memory/network leak if browser suspends or misses the fade event
+          setTimeout(doUnload, fadeTimeMs + 1000);
+        } catch {
+          soundToFade.unload();
+        }
+      } else {
+        try {
+          const sounds = (soundToFade as any)._sounds;
+          if (sounds && sounds.length > 0 && sounds[0]._node) {
+            const node = sounds[0]._node as HTMLAudioElement;
+            node.src = '';
+            node.load();
+          }
+        } catch (err) {
+          console.warn('[Player] Error al forzar liberacion de red de Howler:', err);
+        }
+        soundToFade.unload();
+      }
     }
   }
 
@@ -581,8 +656,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
-  function startRemoteTrack(track: Track, newQueue?: Track[], startPos = 0) {
-    stopRemoteSound();
+  function startRemoteTrack(track: Track, newQueue?: Track[], startPos = 0, crossfadeDurationMs = 0) {
+    stopRemoteSound(crossfadeDurationMs);
 
     const nextQueue = newQueue || queueRef.current;
     if (newQueue) {
@@ -622,10 +697,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     let initialSeekDone = false;
     let sound: Howl;
+    let crossfadeTriggered = false;
+    let fadeInTriggered = false;
 
     const onPlay = () => {
       isPlayingRef.current = true;
       setIsPlaying(true);
+      consecutiveErrorsRef.current = 0; // reset consecutive error count
 
       const remoteDuration = sound.duration();
       if (remoteDuration && remoteDuration > 0) {
@@ -638,13 +716,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         sound.seek(startPos);
       }
 
+      // Activar fade-in de forma segura en la primera reproducción de esta pista
+      if (crossfadeDurationMs > 0 && !fadeInTriggered) {
+        fadeInTriggered = true;
+        sound.fade(0, volumeRef.current, crossfadeDurationMs);
+      }
+
       clearIntervalSafe();
       let lastSaveTime = 0;
 
       intervalRef.current = window.setInterval(() => {
         if (!sound.playing()) return;
 
-        const position = sound.seek() as number;
+        const val = sound.seek();
+        const position = typeof val === 'number' ? val : 0;
         progressRef.current = position;
         setProgress(position);
 
@@ -655,9 +740,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
 
         const currentDuration = sound.duration();
-        if (currentDuration && currentDuration > 0 && currentDuration !== durationRef.current) {
-          durationRef.current = currentDuration;
-          setDuration(currentDuration);
+        if (currentDuration && currentDuration > 0) {
+          if (currentDuration !== durationRef.current) {
+            durationRef.current = currentDuration;
+            setDuration(currentDuration);
+          }
+
+          // Verificar si el crossfade está habilitado y estamos cerca del final
+          const isCrossfade = !!configRef.current?.audio?.crossfadeEnabled;
+          const crossfadeDuration = configRef.current?.audio?.crossfadeDuration || 4; // en segundos
+          const remaining = currentDuration - position;
+
+          if (
+            isCrossfade && 
+            remaining <= crossfadeDuration && 
+            currentDuration > crossfadeDuration * 2 && 
+            position > crossfadeDuration && 
+            !crossfadeTriggered
+          ) {
+            crossfadeTriggered = true;
+            console.log(`[Crossfade] Tiempo restante: ${remaining}s. Activando transición de pista.`);
+            handleRemoteTrackEnd(true);
+          }
         }
       }, 150);
 
@@ -701,10 +805,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const onLoadError = (_id: any, err: any) => {
       console.error('[Player] Error cargando track remoto:', err);
+      consecutiveErrorsRef.current += 1;
+      const totalTracks = queueRef.current.length || 1;
+      if (consecutiveErrorsRef.current >= totalTracks) {
+        console.error('[Player] Todos los tracks en la cola fallaron. Deteniendo reproducción.');
+        consecutiveErrorsRef.current = 0;
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        clearIntervalSafe();
+      } else {
+        skipNext();
+      }
     };
 
     const onPlayError = (_id: any, err: any) => {
       console.error('[Player] Error reproduciendo track remoto:', err);
+      consecutiveErrorsRef.current += 1;
+      const totalTracks = queueRef.current.length || 1;
+      if (consecutiveErrorsRef.current >= totalTracks) {
+        console.error('[Player] Todos los tracks en la cola fallaron. Deteniendo reproducción.');
+        consecutiveErrorsRef.current = 0;
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        clearIntervalSafe();
+      } else {
+        skipNext();
+      }
     };
 
     // Reutilizar la instancia precargada si existe y coincide
@@ -721,7 +847,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       sound.on('loaderror', onLoadError);
       sound.on('playerror', onPlayError);
 
-      sound.volume(volumeRef.current);
+      sound.volume(crossfadeDurationMs > 0 ? 0 : volumeRef.current);
 
       if (sound.state() === 'loaded') {
         onLoad();
@@ -734,7 +860,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         src: [streamUrl],
         html5: true,
         format: getTrackFormats(track),
-        volume: volumeRef.current,
+        volume: crossfadeDurationMs > 0 ? 0 : volumeRef.current,
         onplay: onPlay,
         onpause: onPause,
         onstop: onStop,
@@ -755,10 +881,50 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       newQueue.every((t, idx) => t.id === queueRef.current[idx]?.id)
     );
 
+    if (track.isUnavailable) {
+      console.warn(`[Player] El track '${track.title}' no está disponible. Buscando el siguiente...`);
+      consecutiveErrorsRef.current += 1;
+      const activeQueue = isShuffleRef.current ? shuffledQueueRef.current : (newQueue || queueRef.current);
+      const totalTracks = activeQueue.length || 1;
+      if (consecutiveErrorsRef.current >= totalTracks) {
+        console.error('[Player] Todos los tracks en la cola fallaron o no están disponibles. Deteniendo.');
+        consecutiveErrorsRef.current = 0;
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        clearIntervalSafe();
+        return;
+      }
+
+      const index = activeQueue.findIndex(t => t.id === track.id);
+      const nextInfo = findNextAvailableTrack(activeQueue, index >= 0 ? index + 1 : 0);
+      if (nextInfo) {
+        playTrack(nextInfo.track, newQueue, startPos, playlistId);
+      } else {
+        console.error('[Player] No hay más tracks disponibles en la cola.');
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        clearIntervalSafe();
+      }
+      return;
+    }
+
     if (isLocalMode) {
       if (currentTrackRef.current?.id === track.id && isSameQueue && startPos === 0) {
         postPlayerCommand('play');
         return;
+      }
+
+      if (newQueue) {
+        queueRef.current = newQueue;
+        setQueue(newQueue);
+        if (isShuffleRef.current) {
+          const nextShuffled = createShuffledQueue(newQueue, track);
+          shuffledQueueRef.current = nextShuffled;
+          setShuffledQueue(nextShuffled);
+        } else {
+          shuffledQueueRef.current = [];
+          setShuffledQueue([]);
+        }
       }
 
       postPlayerCommand('play', {
@@ -869,17 +1035,80 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlayQueue(prev => [...prev, track]);
   }
 
-  function handleRemoteTrackEnd() {
-    if (loopModeRef.current === 'one' && currentTrackRef.current) {
-      startRemoteTrack(currentTrackRef.current, queueRef.current, 0);
+  function isTrackAvailable(track: Track | null): boolean {
+    if (!track) return false;
+    return !track.isUnavailable;
+  }
+
+  function findNextAvailableTrack(queue: Track[], startIndex: number): { track: Track; index: number } | null {
+    if (queue.length === 0) return null;
+    
+    // Buscar hacia adelante
+    for (let i = startIndex; i < queue.length; i++) {
+      if (isTrackAvailable(queue[i])) {
+        return { track: queue[i], index: i };
+      }
+    }
+    
+    // Si loopMode es 'all', buscar desde el principio
+    if (loopModeRef.current === 'all') {
+      for (let i = 0; i < startIndex; i++) {
+        if (isTrackAvailable(queue[i])) {
+          return { track: queue[i], index: i };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  function findPrevAvailableTrack(queue: Track[], startIndex: number): { track: Track; index: number } | null {
+    if (queue.length === 0) return null;
+    
+    // Buscar hacia atrás
+    for (let i = startIndex; i >= 0; i--) {
+      if (isTrackAvailable(queue[i])) {
+        return { track: queue[i], index: i };
+      }
+    }
+    
+    // Si loopMode es 'all', buscar desde el final
+    if (loopModeRef.current === 'all') {
+      for (let i = queue.length - 1; i > startIndex; i--) {
+        if (isTrackAvailable(queue[i])) {
+          return { track: queue[i], index: i };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  function handleRemoteTrackEnd(useCrossfade = false) {
+    const crossfadeDurationMs = useCrossfade && configRef.current?.audio?.crossfadeEnabled
+      ? (configRef.current?.audio?.crossfadeDuration || 4) * 1000
+      : 0;
+
+    if (loopModeRef.current === 'one' && currentTrackRef.current && isTrackAvailable(currentTrackRef.current)) {
+      startRemoteTrack(currentTrackRef.current, undefined, 0, crossfadeDurationMs);
       return;
     }
 
     if (playQueueRef.current.length > 0) {
-      const nextTrack = playQueueRef.current[0];
-      setPlayQueue(prev => prev.slice(1));
-      startRemoteTrack(nextTrack, queueRef.current, 0);
-      return;
+      let nextPlayTrack: Track | null = null;
+      const currentPlayQueue = [...playQueueRef.current];
+      while (currentPlayQueue.length > 0) {
+        const candidate = currentPlayQueue.shift()!;
+        if (isTrackAvailable(candidate)) {
+          nextPlayTrack = candidate;
+          break;
+        }
+      }
+      setPlayQueue(currentPlayQueue);
+      if (nextPlayTrack) {
+        startRemoteTrack(nextPlayTrack, undefined, 0, crossfadeDurationMs);
+        return;
+      }
     }
 
     const activeQueue = isShuffleRef.current ? shuffledQueueRef.current : queueRef.current;
@@ -887,10 +1116,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!track || activeQueue.length === 0) return;
 
     const index = activeQueue.findIndex(item => item.id === track.id);
-    if (index >= 0 && index < activeQueue.length - 1) {
-      startRemoteTrack(activeQueue[index + 1], queueRef.current, 0);
-    } else if (index === activeQueue.length - 1 && loopModeRef.current === 'all') {
-      startRemoteTrack(activeQueue[0], queueRef.current, 0);
+    let nextInfo = findNextAvailableTrack(activeQueue, index + 1);
+
+    if (nextInfo) {
+      if (isShuffleRef.current && nextInfo.index <= index) {
+        console.log('[Shuffle] Fin de cola detectado en Howl. Regenerando orden de reproducción...');
+        const newShuffled = createShuffledQueue(queueRef.current, null);
+        shuffledQueueRef.current = newShuffled;
+        setShuffledQueue(newShuffled);
+        nextInfo = findNextAvailableTrack(newShuffled, 0);
+        if (nextInfo) {
+          startRemoteTrack(nextInfo.track, undefined, 0, crossfadeDurationMs);
+        }
+      } else {
+        startRemoteTrack(nextInfo.track, undefined, 0, crossfadeDurationMs);
+      }
     }
   }
 
@@ -899,6 +1139,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       postPlayerCommand('next');
       return;
     }
+
+    const now = Date.now();
+    if (now - lastSkipTimeRef.current < 400) {
+      console.log('[Player] Frontend skipNext ignorado por rate limit');
+      return;
+    }
+    lastSkipTimeRef.current = now;
 
     handleRemoteTrackEnd();
   }
@@ -909,16 +1156,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const now = Date.now();
+    if (now - lastSkipTimeRef.current < 400) {
+      console.log('[Player] Frontend skipPrevious ignorado por rate limit');
+      return;
+    }
+    lastSkipTimeRef.current = now;
+
     const activeQueue = isShuffleRef.current ? shuffledQueueRef.current : queueRef.current;
     const track = currentTrackRef.current;
     if (!track || activeQueue.length === 0) return;
 
-    const now = Date.now();
-    const timeSinceLastClick = now - lastPrevClickRef.current;
-    lastPrevClickRef.current = now;
+    const nowTime = Date.now();
+    const timeSinceLastClick = nowTime - lastPrevClickRef.current;
+    lastPrevClickRef.current = nowTime;
 
-    // Si pulsó "Atrás" hace menos de 2 segundos, o si el progreso actual es menor a 3s,
-    // cambiamos al track anterior. Si no, solo reiniciamos la canción.
     const currentPosition = progressRef.current;
     if (currentPosition > 3 && timeSinceLastClick > 2000) {
       soundRef.current?.seek(0);
@@ -929,10 +1181,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
 
     const index = activeQueue.findIndex(item => item.id === track.id);
-    if (index > 0) {
-      startRemoteTrack(activeQueue[index - 1], queueRef.current, 0);
-    } else if (index === 0 && loopModeRef.current === 'all') {
-      startRemoteTrack(activeQueue[activeQueue.length - 1], queueRef.current, 0);
+    const prevInfo = findPrevAvailableTrack(activeQueue, index - 1);
+    if (prevInfo) {
+      startRemoteTrack(prevInfo.track, undefined, 0);
     }
   }
 

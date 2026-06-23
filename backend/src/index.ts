@@ -105,12 +105,12 @@ app.post('/api/player/pause', (_req: Request, res: Response) => {
 });
 
 app.post('/api/player/next', (_req: Request, res: Response) => {
-  playerService.skipNext();
+  playerService.skipNext(true);
   res.json({ success: true });
 });
 
 app.post('/api/player/prev', (_req: Request, res: Response) => {
-  playerService.skipPrevious();
+  playerService.skipPrevious(true);
   res.json({ success: true });
 });
 

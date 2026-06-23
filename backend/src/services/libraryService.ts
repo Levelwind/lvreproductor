@@ -414,7 +414,7 @@ export function queryLibrary(params: LibraryQueryParams): LibraryQueryResult {
   // 3. Paginación
   const limit = params.limit !== undefined ? Number(params.limit) : 100;
   const offset = params.offset !== undefined ? Number(params.offset) : 0;
-  const paginatedTracks = tracks.slice(offset, offset + limit);
+  const paginatedTracks = limit === -1 ? tracks.slice(offset) : tracks.slice(offset, offset + limit);
 
   return {
     tracks: paginatedTracks,

@@ -22,6 +22,7 @@ export function SettingsPanel({ config, setConfig, tracks, onSyncFinished }: Set
         body: JSON.stringify(config)
       });
       alert('Configuración guardada correctamente.');
+      window.dispatchEvent(new Event('level-player-config-updated'));
     } catch (err) {
       alert('Error al guardar configuración.');
     }
@@ -137,7 +138,63 @@ export function SettingsPanel({ config, setConfig, tracks, onSyncFinished }: Set
             onChange={e => setConfig({...config, youtube: {...config.youtube, cookie: e.target.value}})} 
           />
 
-          <button className="btn-primary" onClick={handleSaveConfig} style={{ marginTop: '16px' }}>
+          <label style={{ marginTop: '10px' }}>Motor de Reproducción (PC Local)</label>
+          <select 
+            className="download-input"
+            value={config?.audio?.playbackEngine || 'native'}
+            onChange={e => setConfig({
+              ...config,
+              audio: {
+                ...config.audio,
+                playbackEngine: e.target.value
+              }
+            })}
+            style={{ cursor: 'pointer' }}
+          >
+            <option value="native">Nativo local (mpv.exe) — Audio bit-perfect (WASAPI)</option>
+            <option value="browser">Navegador web (Howler.js) — Soporta Crossfade</option>
+          </select>
+
+          <h3 style={{ marginTop: '20px', marginBottom: '10px', fontSize: '18px', fontWeight: '600' }}>Transiciones de Audio</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--color-text-primary)' }}>
+            <input 
+              type="checkbox" 
+              checked={!!config?.audio?.crossfadeEnabled} 
+              onChange={e => setConfig({
+                ...config,
+                audio: {
+                  ...config.audio,
+                  crossfadeEnabled: e.target.checked,
+                  crossfadeDuration: config?.audio?.crossfadeDuration || 4
+                }
+              })}
+              style={{ cursor: 'pointer' }}
+            />
+            Habilitar Crossfade (Fundido Cruzado) <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>(Solo en modo de audio Navegador)</span>
+          </label>
+
+          {!!config?.audio?.crossfadeEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', padding: '10px', backgroundColor: 'var(--color-bg-elevated)', borderRadius: '6px' }}>
+              <label style={{ fontSize: '13px' }}>Duración del Crossfade: <strong style={{ color: 'var(--color-brand)' }}>{config?.audio?.crossfadeDuration || 4} segundos</strong></label>
+              <input 
+                type="range" 
+                min="1" 
+                max="12" 
+                step="1"
+                value={config?.audio?.crossfadeDuration || 4} 
+                onChange={e => setConfig({
+                  ...config,
+                  audio: {
+                    ...config.audio,
+                    crossfadeDuration: Number(e.target.value)
+                  }
+                })}
+                style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-brand)' }}
+              />
+            </div>
+          )}
+
+          <button className="btn-primary" onClick={handleSaveConfig} style={{ marginTop: '20px' }}>
             Guardar Cambios
           </button>
         </div>

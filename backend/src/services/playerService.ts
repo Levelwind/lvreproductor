@@ -58,6 +58,8 @@ class PlayerService {
   private commandQueue: MpvCommand[] = [];
   private forceSharedMode = false;
   private isFileLoaded = false;
+  private consecutiveErrors = 0;
+  private lastSkipTime = 0;
 
   private state: PlaybackState = {
     isPlaying: false,
@@ -315,6 +317,18 @@ class PlayerService {
           }
         } else {
           console.error(`[MPV] Error en archivo de música: ${msg.file_error || 'Desconocido'}`);
+          this.consecutiveErrors += 1;
+          const totalTracks = this.state.queue.length || 1;
+          if (this.consecutiveErrors >= totalTracks) {
+            console.error('[Player] Todos los tracks en la cola fallaron. Deteniendo reproducción.');
+            this.consecutiveErrors = 0;
+            this.state.isPlaying = false;
+            this.broadcastState('isPlaying');
+            this.sendCommand(['stop']);
+          } else {
+            console.log('[Player] Saltando al siguiente track disponible por error en reproducción...');
+            this.skipNext(false);
+          }
         }
       }
     }
@@ -347,7 +361,8 @@ class PlayerService {
 
     if (name === 'path') {
       this.isFileLoaded = typeof data === 'string' && data !== '';
-      if (typeof data === 'string') {
+      if (typeof data === 'string' && data !== '') {
+        this.consecutiveErrors = 0;
         const activeQueue = this.state.isShuffle ? this.state.shuffledQueue : this.state.queue;
         const track = activeQueue.find(t => t.filePath === data);
         if (track && this.state.currentTrack?.id !== track.id) {
@@ -496,6 +511,33 @@ class PlayerService {
       }
     }
 
+    if (!this.isTrackAvailable(track)) {
+      console.warn(`[Player] El track '${track.title}' no está disponible. Buscando el siguiente...`);
+      this.consecutiveErrors += 1;
+      const totalTracks = this.state.queue.length || 1;
+      if (this.consecutiveErrors >= totalTracks) {
+        console.error('[Player] Todos los tracks en la cola fallaron. Deteniendo reproducción.');
+        this.consecutiveErrors = 0;
+        this.state.isPlaying = false;
+        this.broadcastState('isPlaying');
+        this.sendCommand(['stop']);
+        return;
+      }
+
+      const activeQueue = this.state.isShuffle ? this.state.shuffledQueue : this.state.queue;
+      const index = activeQueue.findIndex(t => t.id === track.id);
+      const nextInfo = this.findNextAvailableTrack(activeQueue, index >= 0 ? index + 1 : 0);
+      if (nextInfo) {
+        this.playTrack(nextInfo.track, undefined, startSeconds);
+      } else {
+        console.error('[Player] No hay más tracks disponibles en la cola.');
+        this.state.isPlaying = false;
+        this.broadcastState('isPlaying');
+        this.sendCommand(['stop']);
+      }
+      return;
+    }
+
     this.state.currentTrack = track;
     this.state.progress = startSeconds;
     this.state.duration = track.duration || 0;
@@ -558,28 +600,109 @@ class PlayerService {
     this.broadcastState('loopMode');
   }
 
-  public skipNext() {
+  private isTrackAvailable(track: Track | null): boolean {
+    if (!track) return false;
+    if (track.isUnavailable) return false;
+    if (!track.filePath) return false;
+    return fs.existsSync(track.filePath);
+  }
+
+  private findNextAvailableTrack(queue: Track[], startIndex: number): { track: Track; index: number } | null {
+    if (queue.length === 0) return null;
+    
+    // Buscar hacia adelante
+    for (let i = startIndex; i < queue.length; i++) {
+      if (this.isTrackAvailable(queue[i])) {
+        return { track: queue[i], index: i };
+      }
+    }
+    
+    // Si loopMode es 'all', buscar desde el principio
+    if (this.state.loopMode === 'all') {
+      for (let i = 0; i < startIndex; i++) {
+        if (this.isTrackAvailable(queue[i])) {
+          return { track: queue[i], index: i };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  private findPrevAvailableTrack(queue: Track[], startIndex: number): { track: Track; index: number } | null {
+    if (queue.length === 0) return null;
+    
+    // Buscar hacia atrás
+    for (let i = startIndex; i >= 0; i--) {
+      if (this.isTrackAvailable(queue[i])) {
+        return { track: queue[i], index: i };
+      }
+    }
+    
+    // Si loopMode es 'all', buscar desde el final
+    if (this.state.loopMode === 'all') {
+      for (let i = queue.length - 1; i > startIndex; i--) {
+        if (this.isTrackAvailable(queue[i])) {
+          return { track: queue[i], index: i };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  public skipNext(isManual = false) {
+    if (isManual) {
+      const now = Date.now();
+      if (now - this.lastSkipTime < 400) {
+        console.log('[Player] Manual skipNext ignorado por rate limit (anti-spam)');
+        return;
+      }
+      this.lastSkipTime = now;
+    }
+
     const activeQueue = this.state.isShuffle ? this.state.shuffledQueue : this.state.queue;
     if (activeQueue.length === 0 || !this.state.currentTrack) return;
 
     const index = activeQueue.findIndex(track => track.id === this.state.currentTrack?.id);
-    if (index === activeQueue.length - 1) {
-      if (this.state.loopMode === 'all') {
-        this.playTrack(activeQueue[0]);
+    let nextInfo = this.findNextAvailableTrack(activeQueue, index + 1);
+
+    if (nextInfo) {
+      if (this.state.isShuffle && nextInfo.index <= index) {
+        console.log('[Shuffle] Fin de cola detectado al saltar. Regenerando orden...');
+        this.generateShuffledQueue(null);
+        const newShuffled = this.state.shuffledQueue;
+        nextInfo = this.findNextAvailableTrack(newShuffled, 0);
+        if (nextInfo) {
+          this.playTrack(nextInfo.track);
+        } else {
+          this.state.isPlaying = false;
+          this.broadcastState('isPlaying');
+          this.sendCommand(['stop']);
+        }
       } else {
-        this.state.isPlaying = false;
-        this.broadcastState('isPlaying');
-        this.sendCommand(['stop']);
+        this.playTrack(nextInfo.track);
       }
     } else {
-      this.playTrack(activeQueue[index + 1]);
+      this.state.isPlaying = false;
+      this.broadcastState('isPlaying');
+      this.sendCommand(['stop']);
     }
   }
 
-  public skipPrevious() {
-    const now = Date.now();
-    const timeSinceLastClick = now - this.lastPrevClick;
-    this.lastPrevClick = now;
+  public skipPrevious(isManual = false) {
+    if (isManual) {
+      const now = Date.now();
+      if (now - this.lastSkipTime < 400) {
+        console.log('[Player] Manual skipPrevious ignorado por rate limit (anti-spam)');
+        return;
+      }
+      this.lastSkipTime = now;
+    }
+
+    const nowTime = Date.now();
+    const timeSinceLastClick = nowTime - this.lastPrevClick;
+    this.lastPrevClick = nowTime;
 
     if (this.state.progress > 3 && timeSinceLastClick > 2000) {
       this.seekTo(0);
@@ -590,10 +713,9 @@ class PlayerService {
     if (activeQueue.length === 0 || !this.state.currentTrack) return;
 
     const index = activeQueue.findIndex(track => track.id === this.state.currentTrack?.id);
-    if (index > 0) {
-      this.playTrack(activeQueue[index - 1]);
-    } else if (index === 0 && this.state.loopMode === 'all') {
-      this.playTrack(activeQueue[activeQueue.length - 1]);
+    const prevInfo = this.findPrevAvailableTrack(activeQueue, index - 1);
+    if (prevInfo) {
+      this.playTrack(prevInfo.track);
     }
   }
 
@@ -614,31 +736,46 @@ class PlayerService {
   }
 
   private handleTrackEnd() {
-    if (this.state.loopMode === 'one' && this.state.currentTrack) {
+    if (this.state.loopMode === 'one' && this.state.currentTrack && this.isTrackAvailable(this.state.currentTrack)) {
       this.playTrack(this.state.currentTrack);
       return;
     }
 
     if (this.state.playQueue.length > 0) {
-      const nextTrack = this.state.playQueue.shift()!;
-      this.broadcastState('playQueue');
-      this.playTrack(nextTrack);
-      return;
+      while (this.state.playQueue.length > 0) {
+        const nextTrack = this.state.playQueue.shift()!;
+        this.broadcastState('playQueue');
+        if (this.isTrackAvailable(nextTrack)) {
+          this.playTrack(nextTrack);
+          return;
+        }
+      }
     }
 
     const activeQueue = this.state.isShuffle ? this.state.shuffledQueue : this.state.queue;
     if (activeQueue.length === 0 || !this.state.currentTrack) return;
 
     const index = activeQueue.findIndex(track => track.id === this.state.currentTrack?.id);
-    if (index === activeQueue.length - 1) {
-      if (this.state.loopMode === 'all') {
-        this.playTrack(activeQueue[0]);
+    let nextInfo = this.findNextAvailableTrack(activeQueue, index + 1);
+
+    if (nextInfo) {
+      if (this.state.isShuffle && nextInfo.index <= index) {
+        console.log('[Shuffle] Fin de cola detectado al reproducir. Regenerando orden...');
+        this.generateShuffledQueue(null);
+        const newShuffled = this.state.shuffledQueue;
+        nextInfo = this.findNextAvailableTrack(newShuffled, 0);
+        if (nextInfo) {
+          this.playTrack(nextInfo.track);
+        } else {
+          this.state.isPlaying = false;
+          this.broadcastState('isPlaying');
+        }
       } else {
-        this.state.isPlaying = false;
-        this.broadcastState('isPlaying');
+        this.playTrack(nextInfo.track);
       }
-    } else if (index >= 0) {
-      this.playTrack(activeQueue[index + 1]);
+    } else {
+      this.state.isPlaying = false;
+      this.broadcastState('isPlaying');
     }
   }
 

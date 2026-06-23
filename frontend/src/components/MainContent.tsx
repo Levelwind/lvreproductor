@@ -55,7 +55,7 @@ export function MainContent() {
   const reloadLibrary = useCallback(() => {
     setIsLoading(true);
     const query = new URLSearchParams({
-      limit: '100',
+      limit: '-1',
       offset: '0',
       ...(debouncedSearchQuery ? { q: debouncedSearchQuery } : {}),
       ...(selectedPlaylistId ? { playlistId: selectedPlaylistId } : {})
@@ -93,7 +93,7 @@ export function MainContent() {
      setIsLoading(true);
 
      const query = new URLSearchParams({
-       limit: '100',
+       limit: '-1',
        offset: tracks.length.toString(),
        ...(debouncedSearchQuery ? { q: debouncedSearchQuery } : {}),
        ...(selectedPlaylistId ? { playlistId: selectedPlaylistId } : {})
